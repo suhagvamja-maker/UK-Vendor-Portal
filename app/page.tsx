@@ -1,65 +1,79 @@
-import Image from "next/image";
+import Link from 'next/link';
+import { redirect } from 'next/navigation';
+import { auth, currentUser } from '@clerk/nextjs/server';
+import { buttonVariants } from '@/components/ui/button';
+import { env } from '@/lib/env';
+import { ensureUserFromClerk } from '@/lib/repo/users';
+import { findOrCreateVendor } from '@/lib/repo/vendors';
+import type { AppRole } from '@/types/roles';
 
-export default function Home() {
+const ROLE_HOME: Record<AppRole, string> = {
+  vendor: '/vendor/dashboard',
+  admin: '/admin/invoices',
+  finance: '/finance/invoices',
+};
+
+export default async function Home() {
+  const { userId } = await auth();
+
+  if (userId) {
+    const clerkUser = await currentUser();
+    if (clerkUser) {
+      const email = clerkUser.emailAddresses.find((e) => e.id === clerkUser.primaryEmailAddressId)?.emailAddress
+        ?? clerkUser.emailAddresses[0]?.emailAddress
+        ?? '';
+      const name = [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(' ') || null;
+      const metadataRole = (clerkUser.publicMetadata as { role?: string } | undefined)?.role ?? null;
+
+      const dbUser = ensureUserFromClerk({
+        clerkUserId: userId,
+        email,
+        name,
+        metadataRole,
+        ownerEmail: env().OWNER_EMAIL ?? null,
+      });
+
+      if (dbUser.role === 'vendor') {
+        findOrCreateVendor(dbUser.id);
+      }
+      redirect(ROLE_HOME[dbUser.role]);
+    }
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <main className="flex-1 flex items-center justify-center p-8">
+      <div className="max-w-md w-full">
+        <div className="text-center space-y-6 mb-8">
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-foreground text-background font-bold text-base">
+            IC
+          </div>
+          <div className="space-y-2">
+            <h1 className="text-3xl font-semibold tracking-tight">
+              Invoice &amp; Compliance
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Foreign vendor invoicing &amp; tax-compliance workflow.
+            </p>
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+        <div className="ink-card p-6 space-y-4">
+          <div className="space-y-1">
+            <h2 className="text-base font-semibold">Sign in to continue</h2>
+            <p className="text-xs text-muted-foreground">
+              Access is invitation only. If you have an invitation link, open it to set up
+              your account.
+            </p>
+          </div>
+          <Link href="/sign-in" className={buttonVariants({ size: 'lg' })}>
+            Sign in
+          </Link>
         </div>
-      </main>
-    </div>
+
+        <p className="text-center text-xs text-muted-foreground mt-6">
+          Trouble signing in? Ask the system owner to send you a fresh link.
+        </p>
+      </div>
+    </main>
   );
 }

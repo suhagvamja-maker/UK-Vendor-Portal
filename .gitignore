@@ -39,3 +39,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# clerk configuration (can include secrets)
+/.clerk/
+
+# Dev SQLite store + local uploads
+/.data/
+
+# Allow example env files to be committed (docs for new devs)
+!.env*.example
